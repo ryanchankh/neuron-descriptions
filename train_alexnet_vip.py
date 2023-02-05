@@ -116,9 +116,19 @@ def main(args):
             std=[0.229, 0.224, 0.225]
         ),
     ])
-    trainset = datasets.ImageFolder(f'{args.data_dir}/train/', transform=train_transforms)
+    trainset = datasets.ImageFolder(
+        f'{args.data_dir}/train/',
+        transform=train_transforms
+    )
     train_sampler = DistributedSampler(trainset, world_size, rank, shuffle=True)
-    trainloader = DataLoader(trainset, batch_size=args.batch_size, sampler=train_sampler)
+    trainloader = DataLoader(
+        trainset, 
+        batch_size=args.batch_size,
+        sampler=train_sampler,
+        drop_last=True,
+        pin_memory=True,
+        num_workers=4
+    )
     test_transforms = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
@@ -127,9 +137,19 @@ def main(args):
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225]),
     ])
-    testset = datasets.ImageFolder(f'{args.data_dir}/val/', transform=test_transforms)
+    testset = datasets.ImageFolder(
+        f'{args.data_dir}/val/',
+        transform=test_transforms
+    )
     testsampler = DistributedSampler(testset, world_size, rank, shuffle=False)
-    testloader = DataLoader(testset, batch_size=args.batch_size, sampler=testsampler)
+    testloader = DataLoader(
+        testset,
+        batch_size=args.batch_size,
+        sampler=testsampler,
+        drop_last=True,
+        pin_memory=True,
+        num_workers=4
+    )
     MAX_QUERIES = 1132
     
     ## Architectures
