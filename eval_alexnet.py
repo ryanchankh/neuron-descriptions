@@ -110,7 +110,7 @@ def main(args):
     classifier_fc.eval()
     torch.distributed.barrier()
 
-    y_test_pred_all, y_test = [], [], []
+    y_test_pred_all, y_test = [], []
     test_loss = 0. 
     total_test = 0.
     for test_batch_i, (test_images, test_labels) in tqdm(enumerate(testloader)):
