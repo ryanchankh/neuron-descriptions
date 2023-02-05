@@ -272,6 +272,9 @@ def main(args):
                 total_test += test_bs
                 
                 test_loss += criterion(test_logits, test_labels)
+                
+                if test_batch_i > 2:
+                    break
             se_lst = torch.hstack(se_lst).float()
             se_mean = se_lst.mean()
             se_std = se_lst.std()
@@ -285,8 +288,7 @@ def main(args):
             del batch_logits_test_lst
             del se_lst
             
-            if test_batch_i > 2:
-                break
+            
 
             # logging
             if utils.is_main_process():
