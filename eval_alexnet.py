@@ -53,34 +53,6 @@ def parseargs():
     args = parser.parse_args()
     return args
 
-# def multiply_mask(layer, mask):
-#     """Hooks for modifying layer output during forward pass."""
-#     layer_mask_idx = {
-#         'conv1': torch.arange(0, 64),
-#         'conv2': torch.arange(64, 256),
-#         'conv3': torch.arange(256, 640),
-#         'conv4': torch.arange(640, 896),
-#         'conv5': torch.arange(876, 1132)
-#     }
-#     layer_mask = torch.index_select(mask, 1, layer_mask_idx[layer].to(mask.device))
-#     layer_mask = layer_mask[:, :, None, None]
-#     def hook(model, input, output):
-#         return output * layer_mask
-#     return hook
-
-# def add_hooks(model, mask, layer_hooks):
-#     for layer_idx, layer_name in zip([0, 3, 6, 8, 10], ['conv1', 'conv2', 'conv3', 'conv4', 'conv5']):
-#         layer_hook = model.module[layer_idx].register_forward_hook(multiply_mask(layer_name, mask))
-#         layer_hooks.append(layer_hook)
-#     return layer_hooks
-
-# def remove_hooks(layer_hooks):
-#     for layer_hook in layer_hooks:
-#         layer_hook.remove()
-        
-# def update_history(history, query):
-#     return history + query
-
 def main(args):
     
     ## CUDA
@@ -97,38 +69,7 @@ def main(args):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    ## Directory
-    # if utils.is_main_process():
-    #     run = wandb.init(entity='jhuvisionlab', project='IP-dissect', name=args.name, mode=args.mode)
-    #     model_dir = os.path.join(args.save_dir, args.data, f'{run.id}')
-    #     os.makedirs(model_dir, exist_ok=True)
-    #     wandb.config.update(args)
-    #     utils.save_params(model_dir, vars(args))
-    #     print(model_dir)
-
-    ## Data
-    # train_transforms = transforms.Compose([
-    #     transforms.RandomResizedCrop(224),
-    #     transforms.RandomHorizontalFlip(),
-    #     transforms.ToTensor(),
-    #     transforms.Normalize(
-    #         mean=[0.485, 0.456, 0.406], 
-    #         std=[0.229, 0.224, 0.225]
-    #     ),
-    # ])
-    # trainset = datasets.ImageFolder(
-    #     f'{args.data_dir}/train/',
-    #     transform=train_transforms
-    # )
-    # train_sampler = DistributedSampler(trainset, world_size, rank, shuffle=True)
-    # trainloader = DataLoader(
-    #     trainset, 
-    #     batch_size=args.batch_size,
-    #     sampler=train_sampler,
-    #     drop_last=True,
-    #     pin_memory=True,
-    #     num_workers=4
-    # )
+    # Transforms
     test_transforms = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
@@ -161,128 +102,42 @@ def main(args):
     
     classifier_embed = classifier_embed.to(device)
     classifier_embed = DistributedDataParallel(classifier_embed, device_ids=[gpu])
-    
-    querier = FullyConnectedQuerier(input_dim=9216, n_queries=MAX_QUERIES)
-    querier = querier.to(device)
-    querier = DistributedDataParallel(querier, device_ids=[gpu])
 
     ## Optimization
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(list(querier.parameters()) + list(classifier_fc.parameters()), amsgrad=True, lr=args.lr)
-    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-    # ## Training
-    # scheduler_tau = torch.linspace(args.tau_start, args.tau_end, args.epochs)
-    # scaler = torch.cuda.amp.GradScaler()
-    # for epoch in range(args.epochs):
-    #     classifier_embed.train()
-    #     classifier_fc.train()
-    #     querier.train()
-    #     tau = scheduler_tau[epoch]
-    #     querier.module.update_tau(tau)
-    #     trainloader.sampler.set_epoch(epoch)
-    #     torch.cuda.synchronize()
-    #     for train_batch_i, (train_images, train_labels) in tqdm(enumerate(trainloader)):
-    #         train_images = train_images.to(device)
-    #         train_labels = train_labels.to(device)
-    #         train_bs = train_images.shape[0]
-    #         optimizer.zero_grad()
-    #         hooks = []
-            
-    #         # inference
-    #         with torch.cuda.amp.autocast():
-    #             # random sampling history
-    #             random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).to(device)
-    #             hooks = add_hooks(classifier_embed, random_mask, hooks)
-                
-    #             # query and update history
-    #             train_embed = classifier_embed(train_images)
-    #             train_query = querier(train_embed, random_mask)
-    #             updated_mask = random_mask + train_query
-    #             hooks = add_hooks(classifier_embed, updated_mask, hooks)
-                
-    #             # predict with updated history
-    #             train_logits = classifier_fc(classifier_embed(train_images))
-                
+    classifier_embed.eval()
+    classifier_fc.eval()
+    torch.distributed.barrier()
 
-    #         # backprop
-    #         loss = criterion(train_logits, train_labels)
-    #         scaler.scale(loss).backward()
-    #         scaler.step(optimizer)
-    #         scaler.update()
-            
-    #         # remove all hooks
-    #         remove_hooks(hooks)
+    y_test_pred_all, y_test = [], [], []
+    test_loss = 0. 
+    total_test = 0.
+    for test_batch_i, (test_images, test_labels) in tqdm(enumerate(testloader)):
+        test_images = test_images.to(device)
+        test_labels = test_labels.to(device)
+        test_bs = test_labels.size(0)
 
-    #         # logging
-    #         utils.on_master(
-    #             wandb.log,
-    #             {'train_epoch': epoch, 
-    #              'train_lr': utils.get_lr(optimizer),
-    #              'train_querier_grad_norm': utils.get_grad_norm(querier),
-    #              'train_classifier_embed_grad_norm': utils.get_grad_norm(classifier_embed),
-    #              'train_classifier_fc_grad_norm': utils.get_grad_norm(classifier_fc),
-    #              'train_tau': tau,
-    #              'train_loss': loss.item()}
-    #             )
-    #         torch.cuda.synchronize()
-            
-    #         # if train_batch_i > 2:
-    #             # break
-    #     scheduler.step()
+        # inference
+        with torch.cuda.amp.autocast():
+            with torch.no_grad():
+                batch_logits_test_all = classifier_fc(classifier_embed(test_images))
+    
+        batch_y_pred_all = batch_logits_test_all.argmax(dim=1)
+        y_test_pred_all.append(batch_y_pred_all.cpu())
         
-
-    #     if epoch % 10 == 0 or epoch == args.epochs - 1:
-    #         classifier_embed.eval()
-    #         classifier_fc.eval()
-    #         querier.eval()
-    #         torch.distributed.barrier()
-    #         if utils.is_main_process():
-    #             utils.save_ckpt(model_dir, 
-    #                 {'epoch': epoch,
-    #                  'classifier_fc': classifier_fc.state_dict(),
-    #                  'querier': querier.state_dict(),
-    #                  'optimizer': optimizer.state_dict(),
-    #                  'scheduler': scheduler.state_dict()
-    #                 }, 
-    #                 epoch
-    #             )
+        y_test.append(test_labels.cpu())
+        total_test += test_bs
         
-        # if epoch % 10 == 0 or epoch == args.epochs - 1:
-        classifier_embed.eval()
-        classifier_fc.eval()
-        querier.eval()
-        torch.distributed.barrier()
-
-        y_test_pred_all, y_test = [], [], []
-        test_loss = 0. 
-        total_test = 0.
-        for test_batch_i, (test_images, test_labels) in tqdm(enumerate(testloader)):
-            test_images = test_images.to(device)
-            test_labels = test_labels.to(device)
-            test_bs = test_labels.size(0)
-
-            # inference
-            batch_logits_test_lst = []
-            with torch.cuda.amp.autocast():
-                with torch.no_grad():
-                    batch_logits_test_all = classifier_fc(classifier_embed(test_images))
-       
-            batch_y_pred_all = batch_logits_test_all.argmax(dim=1)
-            y_test_pred_all.append(batch_y_pred_all.cpu())
-            
-            y_test.append(test_labels.cpu())
-            total_test += test_bs
-            
-            test_loss += criterion(batch_logits_test_all, test_labels)
-            test_loss = test_loss / (test_batch_i + 1)
-            
-            batch_acc = evaluate.compute_accuracy(batch_y_pred_all, test_labels)
-            print(f'{test_batch_i} | loss: {test_loss} | batch_acc: {batch_acc}')
-        y_test = torch.hstack(y_test).numpy()
-        y_test_pred_all = torch.hstack(y_test_pred_all).numpy()
-        acc_all = evaluate.compute_accuracy(y_test, y_test_pred_all)
-        print(f'{test_batch_i} | loss: {test_loss} | all acc: {acc_all}')
+        test_loss += criterion(batch_logits_test_all, test_labels)
+        test_loss = test_loss / (test_batch_i + 1)
+        
+        batch_acc = evaluate.compute_accuracy(batch_y_pred_all, test_labels)
+        print(f'{test_batch_i} | loss: {test_loss} | batch_acc: {batch_acc}')
+    y_test = torch.hstack(y_test).numpy()
+    y_test_pred_all = torch.hstack(y_test_pred_all).numpy()
+    acc_all = evaluate.compute_accuracy(y_test, y_test_pred_all)
+    print(f'{test_batch_i} | loss: {test_loss} | all acc: {acc_all}')
 
 
 if __name__ == '__main__':
