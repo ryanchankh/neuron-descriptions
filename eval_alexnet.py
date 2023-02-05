@@ -126,6 +126,8 @@ def main(args):
         batch_y_pred_all = batch_logits_test_all.argmax(dim=1)
         y_test_pred_all.append(batch_y_pred_all.cpu())
         print(batch_logits_test_all.sum(1))
+        print(batch_y_pred_all[:25])
+        print(test_labels[:25])
         
         y_test.append(test_labels.cpu())
         total_test += test_bs
