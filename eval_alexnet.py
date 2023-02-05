@@ -113,7 +113,7 @@ def main(args):
     y_test_pred_all, y_test = [], []
     test_loss = 0. 
     total_test = 0.
-    for test_batch_i, (test_images, test_labels) in tqdm(enumerate(testloader)):
+    for test_batch_i, (test_images, test_labels) in enumerate(testloader):
         test_images = test_images.to(device)
         test_labels = test_labels.to(device)
         test_bs = test_labels.size(0)
@@ -130,14 +130,13 @@ def main(args):
         total_test += test_bs
         
         test_loss += criterion(batch_logits_test_all, test_labels)
-        test_loss = test_loss / (test_batch_i + 1)
         
         batch_acc = evaluate.compute_accuracy(batch_y_pred_all, test_labels)
-        print(f'{test_batch_i} | loss: {test_loss} | batch_acc: {batch_acc}')
-    y_test = torch.hstack(y_test).numpy()
-    y_test_pred_all = torch.hstack(y_test_pred_all).numpy()
+        print(f'{test_batch_i} | loss: {test_loss / (test_batch_i + 1)} | batch_acc: {batch_acc}')
+    y_test = torch.hstack(y_test)
+    y_test_pred_all = torch.hstack(y_test_pred_all)
     acc_all = evaluate.compute_accuracy(y_test, y_test_pred_all)
-    print(f'{test_batch_i} | loss: {test_loss} | all acc: {acc_all}')
+    print(f'{test_batch_i} | loss: {test_loss / (test_batch_i + 1)} | all acc: {acc_all}')
 
 
 if __name__ == '__main__':
