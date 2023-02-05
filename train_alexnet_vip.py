@@ -69,7 +69,7 @@ def multiply_mask(layer, mask):
 
 def add_hooks(model, mask, layer_hooks):
     for layer_idx, layer_name in zip([0, 3, 6, 8, 10], ['conv1', 'conv2', 'conv3', 'conv4', 'conv5']):
-        layer_hook = model[0][layer_idx].register_forward_hook(multiply_mask(layer_name, mask))
+        layer_hook = model.module[layer_idx].register_forward_hook(multiply_mask(layer_name, mask))
         layer_hooks.append(layer_hook)
     return layer_hooks
 
@@ -145,7 +145,7 @@ def main(args):
     
     querier = FullyConnectedQuerier(input_dim=9216, n_queries=MAX_QUERIES)
     querier = querier.half().to(device)
-    querier = nn.parallel.DistributedDataParallel(querier, device_ids=[gpu])
+    querier = DistributedDataParallel(querier, device_ids=[gpu])
     querier.train()
     print(querier)
 
