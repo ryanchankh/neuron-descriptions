@@ -16,7 +16,7 @@ class FullyConnectedQuerier(nn.Module):
 
         self.norm1 = nn.LayerNorm(1024)
         self.norm2 = nn.LayerNorm(1024)
-        self.norm3 = nn.LayerNorm(1024)
+        self.norm3 = nn.LayerNorm(1132)
 
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
