@@ -134,17 +134,17 @@ def main(args):
     ## Architectures
     classifier, _, _ = load('alexnet/imagenet')
     classifier_embed = classifier[:16]
-    classifier = classifier.half().to(device)
+    classifier = classifier.to(device)
     classifier = DistributedDataParallel(classifier, device_ids=[gpu])
     classifier.eval()
     print(classifier)
     
-    classifier_embed = classifier_embed.half().to(device)
+    classifier_embed = classifier_embed.to(device)
     classifier_embed = DistributedDataParallel(classifier_embed, device_ids=[gpu])
     classifier_embed.eval()
     
     querier = FullyConnectedQuerier(input_dim=9216, n_queries=MAX_QUERIES)
-    querier = querier.half().to(device)
+    querier = querier.to(device)
     querier = DistributedDataParallel(querier, device_ids=[gpu])
     querier.train()
     print(querier)
@@ -173,7 +173,7 @@ def main(args):
             # inference
             with torch.cuda.amp.autocast():
                 # random sampling history
-                random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).half().to(device)
+                random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).to(device)
                 hooks = add_hooks(classifier_embed, random_mask, hooks)
                 
                 # query and update history
