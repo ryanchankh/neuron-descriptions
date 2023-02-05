@@ -20,7 +20,7 @@ from torch.nn.parallel import DistributedDataParallel
 from src.exemplars.models import load
 from arch.fc1 import FullyConnectedQuerier
 
-from ops.ip import ip
+import ops.ip as ip
 import utils
 import wandb
 
