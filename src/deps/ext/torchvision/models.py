@@ -21,6 +21,7 @@ def alexnet_seq(**kwargs: Any) -> nn.Module:
     class AlexNetSeq(nn.Module):
         def __init__(self, **kwargs):
             super().__init__()
+            kwargs['weights'] = models.AlexNet_Weights.IMAGENET1K_V1
             model = models.alexnet(**kwargs)
             layers = list(
                 zip([
