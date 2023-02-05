@@ -21,6 +21,7 @@ from src.exemplars.models import load
 from arch.fc1 import FullyConnectedQuerier
 
 import ops.ip as ip
+import ops.evaluate as evaluate
 import utils
 import wandb
 
@@ -161,7 +162,7 @@ def main(args):
         querier.module.update_tau(tau)
         trainloader.sampler.set_epoch(epoch)
         torch.cuda.synchronize()
-        for train_images, train_labels in tqdm(trainloader):
+        for train_batch_i, (train_images, train_labels) in tqdm(enumerate(trainloader)):
             train_images = train_images.to(device)
             train_labels = train_labels.to(device)
             train_bs = train_images.shape[0]
@@ -203,7 +204,100 @@ def main(args):
                  'train_loss': loss.item()}
                 )
             torch.cuda.synchronize()
+            
+            if train_batch_i > 10:
+                break
         scheduler.step()
+        
+
+        if epoch % 10 == 0 or epoch == args.epochs - 1:
+            querier.eval()
+            torch.distributed.barrier()
+            if utils.is_main_process():
+                utils.save_ckpt(model_dir, 
+                    {'epoch': epoch,
+                     'querier': querier.state_dict(),
+                     'optimizer': optimizer.state_dict(),
+                     'scheduler': scheduler.state_dict()
+                    }, 
+                    epoch
+                )
+        
+        if epoch % 10 == 0 or epoch == args.epochs - 1:
+            querier.eval()
+            torch.distributed.barrier()
+
+            y_test_pred_all, y_test_pred_ip, y_test, se_lst = [], [], [], []
+            loss_test = 0. 
+            total_test = 0.
+            for test_batch_i, (test_images, test_labels) in tqdm(enumerate(testloader)):
+                test_images = test_images.to(device)
+                test_labels = test_labels.to(device)
+                test_bs = test_labels.size(0)
+    
+                # inference
+                batch_logits_test_lst = []
+                with torch.cuda.amp.autocast():
+                    with torch.no_grad():
+                        mask = torch.zeros((test_bs, MAX_QUERIES)).to(device)
+                        for q in range(args.max_queries_test):
+                            hooks = []
+                            hooks = add_hooks(classifier_embed, mask, hooks)
+                            
+                            # query and update history
+                            test_embed = classifier_embed(test_images)
+                            test_query = querier(test_embed, random_mask)
+                            mask = mask + test_query
+                            hooks = add_hooks(classifier, mask, hooks)
+                            
+                            # predict with updated history
+                            test_logits = classifier(test_images)
+                            
+                            # clear hooks
+                            remove_hooks(hooks)
+
+                        batch_logits_test_all = classifier(test_images)
+                batch_logits_test_lst = torch.stack(batch_logits_test_lst).permute(1, 0, 2)
+                
+                batch_y_pred_all = batch_logits_test_all.argmax(dim=1)
+                y_test_pred_all.append(batch_y_pred_all.cpu())
+                
+                se_test = ip.compute_semantic_entropy(batch_logits_test_lst, args.threshold)
+                batch_y_pred_ip = batch_logits_test_lst[torch.arange(test_bs), se_test-1].argmax(1)
+                y_test_pred_ip.append(batch_y_pred_ip.cpu())
+                se_lst.append(se_test)
+                
+                y_test.append(test_labels.cpu())
+                total_test += test_bs
+                
+                test_loss += criterion(test_logits, test_labels)
+            se_lst = torch.hstack(se_lst).float()
+            se_mean = se_lst.mean()
+            se_std = se_lst.std()
+            y_test_pred_ip = torch.hstack(y_test_pred_ip).numpy()
+            y_test_pred_all = torch.hstack(y_test_pred_all).numpy()
+            y_test = torch.hstack(y_test).numpy()
+            test_loss = test_loss / (test_batch_i + 1)
+
+            del test_images
+            del test_labels
+            del batch_logits_test_lst
+            del se_lst
+            
+            if test_batch_i > 10:
+                break
+
+            # logging
+            if utils.is_main_process():
+                wandb.log({
+                  'eval_epoch': epoch,
+                  'eval_test_acc_ip': evaluate.compute_accuracy(y_test_pred_ip, y_test),
+                  'eval_test_acc_all': evaluate.compute_accuracy(y_test_pred_all, y_test),
+                  'eval_se_mean': se_mean.item(),
+                  'eval_se_std': se_std.item(),
+                  'eval_test_loss': test_loss.item()
+                })
+    print(model_dir)
 
 
 if __name__ == '__main__':
