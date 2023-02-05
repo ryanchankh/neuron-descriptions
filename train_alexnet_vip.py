@@ -133,15 +133,14 @@ def main(args):
     
     ## Architectures
     classifier, _, _ = load('alexnet/imagenet')
+    classifier_embed = classifier[:16]
     classifier = classifier.half().to(device)
     classifier = DistributedDataParallel(classifier, device_ids=[gpu])
     classifier.eval()
-    print(classifier)
-    
-    classifier_embed = classifier[:16]
     classifier_embed = classifier_embed.half().to(device)
     classifier_embed = DistributedDataParallel(classifier_embed, device_ids=[gpu])
     classifier_embed.eval()
+    print(classifier)
     
     querier = FullyConnectedQuerier(input_dim=9216, n_queries=MAX_QUERIES)
     querier = querier.half().to(device)
