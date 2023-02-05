@@ -34,7 +34,7 @@ class FullyConnectedQuerier(nn.Module):
         print(f'Changed temperature to: {self.tau}')
 
 
-    def forward(self, mode, x, mask=None):
+    def forward(self, x, mask=None):
         x = self.relu(self.norm1(self.layer1(x)))
         x = self.relu(self.norm2(self.layer2(x)))
         x = self.relu(self.norm3(self.layer3(x)))
