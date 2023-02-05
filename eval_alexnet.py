@@ -104,6 +104,7 @@ def main(args):
     classifier_embed = DistributedDataParallel(classifier_embed, device_ids=[gpu])
 
     classifier = models.alexnet(weights=models.AlexNet_Weights.IMAGENET1K_V1)
+    classifier = classifier.to(device)
     classifier = DistributedDataParallel(classifier, device_ids=[gpu])
     
     ## Optimization
