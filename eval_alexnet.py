@@ -94,7 +94,7 @@ def main(args):
     # MAX_QUERIES = 1132
     
     ## Architectures
-    classifier, _, _ = load('alexnet/imagenet')
+    classifier, _, _ = load('alexnet/imagenet', pretrained=True)
     classifier_embed = classifier[:16]
     classifier_fc = classifier[16:]
     classifier_fc = classifier_fc.to(device)
@@ -125,10 +125,6 @@ def main(args):
         batch_logits_test_all = batch_logits_test_all.float()
         batch_y_pred_all = batch_logits_test_all.argmax(dim=1)
         y_test_pred_all.append(batch_y_pred_all.cpu())
-        print(batch_logits_test_all.sum(1))
-        print(batch_y_pred_all[:25])
-        print(test_labels[:25])
-        print((batch_y_pred_all==test_labels).sum() / test_bs)
         
         y_test.append(test_labels.cpu())
         total_test += test_bs
