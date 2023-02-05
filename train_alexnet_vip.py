@@ -153,8 +153,6 @@ def main(args):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(querier.parameters(), amsgrad=True, lr=args.lr)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
-    tau_vals = np.linspace(args.tau_start, args.tau_end, args.epochs)
-    
 
     ## Training
     scheduler_tau = torch.linspace(args.tau_start, args.tau_end, args.epochs)
@@ -180,6 +178,7 @@ def main(args):
                 
                 # query and update history
                 train_embed = classifier_embed(train_images)
+                print(train_embed.shape)
                 train_query = querier(train_embed, random_mask)
                 updated_mask = random_mask + train_query
                 hooks = add_hooks(classifier, updated_mask, hooks)
