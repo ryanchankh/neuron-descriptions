@@ -135,28 +135,28 @@ def main(args):
     ## Architectures
     classifier, _, _ = load('alexnet/imagenet')
     classifier_embed = classifier[:16]
-    classifier = classifier.to(device)
-    classifier = DistributedDataParallel(classifier, device_ids=[gpu])
-    classifier.eval()
+    classifier_fc = classifier[16:]
+    classifier_fc = classifier_fc.to(device)
+    classifier_fc = DistributedDataParallel(classifier_fc, device_ids=[gpu])
     
     classifier_embed = classifier_embed.to(device)
     classifier_embed = DistributedDataParallel(classifier_embed, device_ids=[gpu])
-    classifier_embed.eval()
     
     querier = FullyConnectedQuerier(input_dim=9216, n_queries=MAX_QUERIES)
     querier = querier.to(device)
     querier = DistributedDataParallel(querier, device_ids=[gpu])
-    querier.train()
 
     ## Optimization
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(querier.parameters(), amsgrad=True, lr=args.lr)
+    optimizer = optim.Adam(list(querier.parameters()) + list(classifier_fc.parameters()), amsgrad=True, lr=args.lr)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     ## Training
     scheduler_tau = torch.linspace(args.tau_start, args.tau_end, args.epochs)
     scaler = torch.cuda.amp.GradScaler()
     for epoch in range(args.epochs):
+        classifier_embed.train()
+        classifier_fc.train()
         querier.train()
         tau = scheduler_tau[epoch]
         querier.module.update_tau(tau)
@@ -179,10 +179,11 @@ def main(args):
                 train_embed = classifier_embed(train_images)
                 train_query = querier(train_embed, random_mask)
                 updated_mask = random_mask + train_query
-                hooks = add_hooks(classifier, updated_mask, hooks)
+                hooks = add_hooks(classifier_embed, updated_mask, hooks)
                 
                 # predict with updated history
-                train_logits = classifier(train_images)
+                train_logits = classifier_fc(classifier_embed(train_images))
+                
 
             # backprop
             loss = criterion(train_logits, train_labels)
@@ -199,7 +200,8 @@ def main(args):
                 {'train_epoch': epoch, 
                  'train_lr': utils.get_lr(optimizer),
                  'train_querier_grad_norm': utils.get_grad_norm(querier),
-                 'train_classifier_grad_norm': utils.get_grad_norm(classifier),
+                 'train_classifier_embed_grad_norm': utils.get_grad_norm(classifier_embed),
+                 'train_classifier_fc_grad_norm': utils.get_grad_norm(classifier_fc),
                  'train_tau': tau,
                  'train_loss': loss.item()}
                 )
@@ -211,11 +213,14 @@ def main(args):
         
 
         if epoch % 10 == 0 or epoch == args.epochs - 1:
+            classifier_embed.eval()
+            classifier_fc.eval()
             querier.eval()
             torch.distributed.barrier()
             if utils.is_main_process():
                 utils.save_ckpt(model_dir, 
                     {'epoch': epoch,
+                     'classifier_fc': classifier_fc.state_dict(),
                      'querier': querier.state_dict(),
                      'optimizer': optimizer.state_dict(),
                      'scheduler': scheduler.state_dict()
@@ -224,6 +229,8 @@ def main(args):
                 )
         
         if epoch % 10 == 0 or epoch == args.epochs - 1:
+            classifier_embed.eval()
+            classifier_fc.eval()
             querier.eval()
             torch.distributed.barrier()
 
@@ -248,16 +255,16 @@ def main(args):
                             test_embed = classifier_embed(test_images)
                             test_query = querier(test_embed, random_mask)
                             mask = mask + test_query
-                            hooks = add_hooks(classifier, mask, hooks)
+                            hooks = add_hooks(classifier_embed, mask, hooks)
                             
                             # predict with updated history
-                            test_logits = classifier(test_images)
+                            test_logits = classifier_fc(classifier_embed(test_images))
                             batch_logits_test_lst.append(test_logits)
                             
                             # clear hooks
                             remove_hooks(hooks)
 
-                        batch_logits_test_all = classifier(test_images)
+                        batch_logits_test_all = classifier_fc(classifier_embed(test_images))
                 batch_logits_test_lst = torch.stack(batch_logits_test_lst).permute(1, 0, 2)
                 
                 batch_y_pred_all = batch_logits_test_all.argmax(dim=1)
