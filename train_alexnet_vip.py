@@ -83,7 +83,7 @@ def update_history(history, query):
 def main(args):
     
     ## CUDA
-    world_size = 1
+    world_size = 3
     if args.distributed:
         gpu = utils.init_distributed_mode(world_size)
         rank = gpu
