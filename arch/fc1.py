@@ -12,7 +12,7 @@ class FullyConnectedQuerier(nn.Module):
         # Architecture
         self.layer1 = nn.Linear(input_dim, 1024)
         self.layer2 = nn.Linear(1024, 1024)
-        self.layer3 = nn.Linear(1024, 1132)
+        self.layer3 = nn.Linear(1024, 1024)
 
         self.norm1 = nn.LayerNorm(1024)
         self.norm2 = nn.LayerNorm(1024)
