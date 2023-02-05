@@ -125,7 +125,7 @@ def main(args):
     
         batch_y_pred_all = batch_logits_test_all.argmax(dim=1)
         y_test_pred_all.append(batch_y_pred_all.cpu())
-        print(batch_logits_test_all)
+        print(batch_logits_test_all.sum(1))
         
         y_test.append(test_labels.cpu())
         total_test += test_bs
@@ -136,7 +136,7 @@ def main(args):
         print(f'{test_batch_i} | loss: {test_loss / (test_batch_i + 1)} | batch_acc: {batch_acc}')
     y_test = torch.hstack(y_test)
     y_test_pred_all = torch.hstack(y_test_pred_all)
-    acc_all = evaluate.compute_accuracy(y_test, y_test_pred_all)
+    acc_all = evaluate.compute_accuracy(y_test_pred_all, y_test)
     print(f'{test_batch_i} | loss: {test_loss / (test_batch_i + 1)} | all acc: {acc_all}')
 
 
