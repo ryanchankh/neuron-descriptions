@@ -50,6 +50,9 @@ def alexnet_seq(**kwargs: Any) -> nn.Module:
             ], model.classifier)
             self.net = nn.Sequential(collections.OrderedDict(layers))
             
+        def __getitem__(self, idx):
+            return self.net[idx]
+            
         def multiply_mask(self, layer, mask):
             """Hooks for modifying layer output during forward pass."""
             layer_mask_idx = {
