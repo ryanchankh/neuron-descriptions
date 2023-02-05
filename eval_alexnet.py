@@ -128,6 +128,7 @@ def main(args):
         print(batch_logits_test_all.sum(1))
         print(batch_y_pred_all[:25])
         print(test_labels[:25])
+        print((batch_y_pred_all==test_labels).sum() / test_bs)
         
         y_test.append(test_labels.cpu())
         total_test += test_bs
