@@ -11,7 +11,7 @@ def compute_correct(y_pred, y_true):
 def compute_accuracy(y_pred, y_true):
     """Compute accuracy by counting correct classification. """
     assert y_pred.shape == y_true.shape
-    return 1 - compute_correct(y_pred, y_true) / y_true.size(0)
+    return compute_correct(y_pred, y_true) / y_true.size(0)
 
 def compute_sensitivity_specificity(y_pred, y_true):
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
