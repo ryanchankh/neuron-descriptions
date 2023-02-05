@@ -137,7 +137,6 @@ def main(args):
     classifier = classifier.to(device)
     classifier = DistributedDataParallel(classifier, device_ids=[gpu])
     classifier.eval()
-    print(classifier)
     
     classifier_embed = classifier_embed.to(device)
     classifier_embed = DistributedDataParallel(classifier_embed, device_ids=[gpu])
@@ -147,7 +146,6 @@ def main(args):
     querier = querier.to(device)
     querier = DistributedDataParallel(querier, device_ids=[gpu])
     querier.train()
-    print(querier)
 
     ## Optimization
     criterion = nn.CrossEntropyLoss()
@@ -178,7 +176,6 @@ def main(args):
                 
                 # query and update history
                 train_embed = classifier_embed(train_images)
-                print(train_embed.shape)
                 train_query = querier(train_embed, random_mask)
                 updated_mask = random_mask + train_query
                 hooks = add_hooks(classifier, updated_mask, hooks)
