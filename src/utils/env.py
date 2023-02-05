@@ -4,9 +4,9 @@ import pathlib
 
 from src.utils.typing import PathLike
 
-ENV_DATA_DIR = 'MILAN_DATA_DIR'
-ENV_MODELS_DIR = 'MILAN_MODELS_DIR'
-ENV_RESULTS_DIR = 'MILAN_RESULTS_DIR'
+ENV_DATA_DIR = './data/'
+ENV_MODELS_DIR = './models/'
+ENV_RESULTS_DIR = './results'
 
 DEFAULT_DATA_DIR = 'data'
 DEFAULT_MODELS_DIR = 'models'
