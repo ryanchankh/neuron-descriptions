@@ -103,6 +103,7 @@ def main(args):
     classifier_embed = classifier_embed.to(device)
     classifier_embed = DistributedDataParallel(classifier_embed, device_ids=[gpu])
 
+    classifier = models.alexnet(weights=models.AlexNet_Weights('DEFAULT'))
     ## Optimization
     criterion = nn.CrossEntropyLoss()
 
