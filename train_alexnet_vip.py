@@ -69,7 +69,7 @@ def multiply_mask(layer, mask):
 
 def add_hooks(model, mask, layer_hooks):
     for layer_idx, layer_name in zip([0, 3, 6, 8, 10], ['conv1', 'conv2', 'conv3', 'conv4', 'conv5']):
-        layer_hook = model[layer_idx].register_forward_hook(multiply_mask(layer_name, mask))
+        layer_hook = model[0][layer_idx].register_forward_hook(multiply_mask(layer_name, mask))
         layer_hooks.append(layer_hook)
     return layer_hooks
 
@@ -137,10 +137,11 @@ def main(args):
     classifier = classifier.half().to(device)
     classifier = DistributedDataParallel(classifier, device_ids=[gpu])
     classifier.eval()
+    print(classifier)
+    
     classifier_embed = classifier_embed.half().to(device)
     classifier_embed = DistributedDataParallel(classifier_embed, device_ids=[gpu])
     classifier_embed.eval()
-    print(classifier)
     
     querier = FullyConnectedQuerier(input_dim=9216, n_queries=MAX_QUERIES)
     querier = querier.half().to(device)
@@ -175,15 +176,13 @@ def main(args):
             with torch.cuda.amp.autocast():
                 # random sampling history
                 random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).to(device)
-                classifier_embed.module.register_hooks_for_masking(random_mask)
-                # hooks = add_hooks(classifier_embed, random_mask, hooks)
+                hooks = add_hooks(classifier_embed, random_mask, hooks)
                 
                 # query and update history
                 train_embed = classifier_embed(train_images)
                 train_query = querier(train_embed, random_mask)
                 updated_mask = random_mask + train_query
-                classifier.module.register_hooks_for_masking(updated_mask)
-                # hooks = add_hooks(classifier, updated_mask, hooks)
+                hooks = add_hooks(classifier, updated_mask, hooks)
                 
                 # predict with updated history
                 train_logits = classifier(train_images)
@@ -195,8 +194,7 @@ def main(args):
             scaler.update()
             
             # remove all hooks
-            classifier_embed.module.remove_hooks()
-            classifier.module.remove_hooks()
+            remove_hooks(hooks)
 
             # logging
             utils.on_master(
