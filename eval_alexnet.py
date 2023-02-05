@@ -130,14 +130,14 @@ def main(args):
         y_test.append(test_labels.cpu())
         total_test += test_bs
         
-        test_loss += criterion(batch_logits_test_all, test_labels)
+        test_loss = criterion(batch_logits_test_all, test_labels)
         
         batch_acc = evaluate.compute_accuracy(batch_y_pred_all, test_labels)
-        print(f'{test_batch_i} | loss: {test_loss / (test_batch_i + 1)} | batch_acc: {batch_acc}')
+        print(f'{test_batch_i} | loss: {test_loss} | batch_acc: {batch_acc}')
     y_test = torch.hstack(y_test)
     y_test_pred_all = torch.hstack(y_test_pred_all)
     acc_all = evaluate.compute_accuracy(y_test_pred_all, y_test)
-    print(f'{test_batch_i} | loss: {test_loss / (test_batch_i + 1)} | all acc: {acc_all}')
+    print(f'{test_batch_i} | loss: {test_loss} | all acc: {acc_all}')
 
 
 if __name__ == '__main__':
