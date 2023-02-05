@@ -61,7 +61,7 @@ def multiply_mask(layer, mask):
         'conv4': torch.arange(640, 896),
         'conv5': torch.arange(876, 1132)
     }
-    layer_mask = torch.index_select(mask, 1, layer_mask_idx[layer])
+    layer_mask = torch.index_select(mask, 1, layer_mask_idx[layer].to(mask.device))
     layer_mask = layer_mask[:, :, None, None]
     def hook(model, input, output):
         return output * layer_mask
