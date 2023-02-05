@@ -205,7 +205,7 @@ def main(args):
                 )
             torch.cuda.synchronize()
             
-            if train_batch_i > 10:
+            if train_batch_i > 2:
                 break
         scheduler.step()
         
@@ -252,6 +252,7 @@ def main(args):
                             
                             # predict with updated history
                             test_logits = classifier(test_images)
+                            batch_logits_test_lst.append(test_logits)
                             
                             # clear hooks
                             remove_hooks(hooks)
@@ -284,7 +285,7 @@ def main(args):
             del batch_logits_test_lst
             del se_lst
             
-            if test_batch_i > 10:
+            if test_batch_i > 2:
                 break
 
             # logging
