@@ -205,8 +205,8 @@ def main(args):
                 )
             torch.cuda.synchronize()
             
-            if train_batch_i > 2:
-                break
+            # if train_batch_i > 2:
+                # break
         scheduler.step()
         
 
@@ -273,8 +273,8 @@ def main(args):
                 
                 test_loss += criterion(test_logits, test_labels)
                 
-                if test_batch_i > 2:
-                    break
+                # if test_batch_i > 2:
+                    # break
             se_lst = torch.hstack(se_lst).float()
             se_mean = se_lst.mean()
             se_std = se_lst.std()
