@@ -173,7 +173,7 @@ def main(args):
             # inference
             with torch.cuda.amp.autocast():
                 # random sampling history
-                random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).to(device)
+                random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).half().to(device)
                 hooks = add_hooks(classifier_embed, random_mask, hooks)
                 
                 # query and update history
