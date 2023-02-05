@@ -104,11 +104,14 @@ def main(args):
     classifier_embed = DistributedDataParallel(classifier_embed, device_ids=[gpu])
 
     classifier = models.alexnet(weights=models.AlexNet_Weights('DEFAULT'))
+    classifier = DistributedDataParallel(classifier, device_ids=[gpu])
+    
     ## Optimization
     criterion = nn.CrossEntropyLoss()
 
-    classifier_embed.eval()
-    classifier_fc.eval()
+    # classifier_embed.eval()
+    # classifier_fc.eval()
+    classifier.eval()
     torch.distributed.barrier()
 
     y_test_pred_all, y_test = [], []
@@ -122,7 +125,7 @@ def main(args):
         # inference
         with torch.cuda.amp.autocast():
             with torch.no_grad():
-                batch_logits_test_all = classifier_fc(classifier_embed(test_images))
+                batch_logits_test_all = classifier(test_images)
         batch_logits_test_all = batch_logits_test_all.float()
         batch_y_pred_all = batch_logits_test_all.argmax(dim=1)
         y_test_pred_all.append(batch_y_pred_all.cpu())
