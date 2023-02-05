@@ -175,13 +175,15 @@ def main(args):
             with torch.cuda.amp.autocast():
                 # random sampling history
                 random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).to(device)
-                hooks = add_hooks(classifier_embed, random_mask, hooks)
+                classifier_embed.module.register_hooks_for_masking(random_mask)
+                # hooks = add_hooks(classifier_embed, random_mask, hooks)
                 
                 # query and update history
                 train_embed = classifier_embed(train_images)
                 train_query = querier(train_embed, random_mask)
                 updated_mask = random_mask + train_query
-                hooks = add_hooks(classifier, updated_mask, hooks)
+                classifier.module.register_hooks_for_masking(updated_mask)
+                # hooks = add_hooks(classifier, updated_mask, hooks)
                 
                 # predict with updated history
                 train_logits = classifier(train_images)
@@ -193,7 +195,8 @@ def main(args):
             scaler.update()
             
             # remove all hooks
-            remove_hooks(hooks)
+            classifier_embed.module.remove_hooks()
+            classifier.module.remove_hooks()
 
             # logging
             utils.on_master(
