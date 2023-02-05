@@ -95,6 +95,8 @@ def main(args):
     
     ## Architectures
     classifier, _, _ = load('resnet152/imagenet')
+    classifier = classifier.to(device)
+    classifier = DistributedDataParallel(classifier, device_ids=[gpu])
     criterion = nn.CrossEntropyLoss()
     
     
