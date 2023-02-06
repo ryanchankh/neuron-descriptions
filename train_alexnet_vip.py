@@ -293,9 +293,9 @@ def main(args):
             se_lst = torch.hstack(se_lst).float()
             se_mean = se_lst.mean()
             se_std = se_lst.std()
-            y_test_pred_ip = torch.hstack(y_test_pred_ip).numpy()
-            y_test_pred_all = torch.hstack(y_test_pred_all).numpy()
-            y_test = torch.hstack(y_test).numpy()
+            y_test_pred_ip = torch.hstack(y_test_pred_ip)
+            y_test_pred_all = torch.hstack(y_test_pred_all)
+            y_test = torch.hstack(y_test)
             test_loss = test_loss / (test_batch_i + 1)
 
             del test_images
