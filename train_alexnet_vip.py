@@ -172,7 +172,7 @@ def main(args):
             # inference
             with torch.cuda.amp.autocast():
                 # random sampling history
-                random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries, start_index=896).to(device)
+                random_mask = ip.sample_random_history(train_bs, 256, args.max_queries, start_index=896).to(device)
                 random_mask[:, :896] = 1.
                                 
                 # query and update history
