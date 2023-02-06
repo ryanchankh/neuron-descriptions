@@ -163,7 +163,7 @@ def default_model_configs(**others: ModelConfig) -> Mapping[str, ModelConfig]:
         KEYS.ALEXNET_IMAGENET:
             ModelConfig(
                 models.alexnet_seq,
-                pretrained=True,
+                models.models.AlexNet_Weights.IMAGENET1K_V1,
                 load_weights=False,
                 layers=LAYERS.ALEXNET,
             ),
