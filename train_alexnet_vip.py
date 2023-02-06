@@ -153,7 +153,7 @@ def main(args):
     MAX_QUERIES = 1132
     
     ## Architectures
-    classifier, _, _ = load('alexnet/imagenet')
+    classifier, _, _ = load('alexnet/imagenet', pretrained=True)
     classifier_embed = classifier[:16]
     classifier_fc = classifier[16:]
     classifier_fc = classifier_fc.to(device)
