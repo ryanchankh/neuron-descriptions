@@ -33,7 +33,7 @@ def compute_semantic_entropy(logits, threshold):
 
 
 
-def sample_random_history(num_samples, num_queries_total, max_queries):
+def sample_random_history(num_samples, num_queries_total, max_queries, start_index=0):
     """Sample indices in a uniformly random manner. 
 
     Arguments: 
@@ -50,5 +50,5 @@ def sample_random_history(num_samples, num_queries_total, max_queries):
         if num == 0:
             continue
         random_history = torch.multinomial(torch.ones(indices.size(1)), num, replacement=False)
-        indices[code_ind, random_history.flatten()] = 1.
+        indices[code_ind, random_history.flatten() + start_index] = 1.
     return indices
