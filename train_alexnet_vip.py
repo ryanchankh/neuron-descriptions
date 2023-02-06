@@ -148,7 +148,8 @@ def main(args):
 
     ## Optimization
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(list(querier.parameters()) + list(classifier.parameters()), amsgrad=True, lr=args.lr)
+    # optimizer = optim.Adam(list(querier.parameters()) + list(classifier.parameters()), amsgrad=True, lr=args.lr)
+    optimizer = optim.SGD(list(querier.parameters()) + list(classifier.parameters()), lr=args.lr, momentum=0.9, weight_decay=args.wd)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     ## Training
