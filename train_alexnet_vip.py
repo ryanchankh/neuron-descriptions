@@ -135,7 +135,7 @@ def main(args):
         pin_memory=True,
         num_workers=4
     )
-    MAX_QUERIES = 1132
+    MAX_QUERIES = 1152
     
     ## Architectures
     classifier, _, _ = load('alexnet/imagenet', pretrained=True)    
