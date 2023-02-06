@@ -67,7 +67,7 @@ def alexnet_seq(**kwargs: Any) -> nn.Module:
             layer_mask = layer_mask[:, :, None, None]
             return layer_mask
 
-        def forward(self, x, mask=None, out=None):
+        def forward(self, x, mask=None, embed=False):
             if mask is None:
                 return self.net(x)
     
@@ -82,7 +82,7 @@ def alexnet_seq(**kwargs: Any) -> nn.Module:
             x = self.net[9:11](x)
             x = x * self.index_mask('conv5', mask)
             x = self.net[11:15](x)
-            if out == 'embed':
+            if embed:
                 return x
             x = self.net[15:](x)
             return x

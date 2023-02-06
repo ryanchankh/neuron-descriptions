@@ -153,14 +153,9 @@ def main(args):
     MAX_QUERIES = 1132
     
     ## Architectures
-    classifier, _, _ = load('alexnet/imagenet', pretrained=True)
-    classifier_embed = classifier[:16]
-    classifier_fc = classifier[16:]
-    
-    classifier_fc = classifier_fc.to(device)
-    classifier_fc = DistributedDataParallel(classifier_fc, device_ids=[gpu])
-    classifier_embed = classifier_embed.to(device)
-    classifier_embed = DistributedDataParallel(classifier_embed, device_ids=[gpu])
+    classifier, _, _ = load('alexnet/imagenet', pretrained=True)    
+    classifier = classifier.to(device)
+    classifier = DistributedDataParallel(classifier, device_ids=[gpu])
     
     querier = FullyConnectedQuerier(input_dim=9216, n_queries=MAX_QUERIES)
     querier = querier.to(device)
@@ -175,8 +170,7 @@ def main(args):
     scheduler_tau = torch.linspace(args.tau_start, args.tau_end, args.epochs)
     scaler = torch.cuda.amp.GradScaler()
     for epoch in range(args.epochs):
-        classifier_embed.train()
-        classifier_fc.train()
+        classifier.train()
         querier.train()
         tau = scheduler_tau[epoch]
         querier.module.update_tau(tau)
@@ -194,7 +188,7 @@ def main(args):
                 random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).to(device)
                                 
                 # query and update history
-                train_embed = classifier(train_images, random_mask)
+                train_embed = classifier(train_images, random_mask, embed=True)
                 train_query = querier(train_embed, random_mask)
                 updated_mask = random_mask + train_query
                 
@@ -206,9 +200,6 @@ def main(args):
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-            
-            # remove all hooks
-            remove_hooks(hooks)
 
             # logging
             utils.on_master(
@@ -216,8 +207,7 @@ def main(args):
                 {'train_epoch': epoch, 
                  'train_lr': utils.get_lr(optimizer),
                  'train_querier_grad_norm': utils.get_grad_norm(querier),
-                 'train_classifier_embed_grad_norm': utils.get_grad_norm(classifier_embed),
-                 'train_classifier_fc_grad_norm': utils.get_grad_norm(classifier_fc),
+                 'train_classifier_grad_norm': utils.get_grad_norm(classifier),
                  'train_tau': tau,
                  'train_loss': loss.item()}
                 )
@@ -229,14 +219,13 @@ def main(args):
         
 
         if epoch % 10 == 0 or epoch == args.epochs - 1:
-            classifier_embed.eval()
-            classifier_fc.eval()
+            classifier.eval()
             querier.eval()
             torch.distributed.barrier()
             if utils.is_main_process():
                 utils.save_ckpt(model_dir, 
                     {'epoch': epoch,
-                     'classifier_fc': classifier_fc.state_dict(),
+                     'classifier': classifier.state_dict(),
                      'querier': querier.state_dict(),
                      'optimizer': optimizer.state_dict(),
                      'scheduler': scheduler.state_dict()
@@ -245,8 +234,7 @@ def main(args):
                 )
         
         if epoch % 10 == 0 or epoch == args.epochs - 1:
-            classifier_embed.eval()
-            classifier_fc.eval()
+            classifier.eval()
             querier.eval()
             torch.distributed.barrier()
 
@@ -263,24 +251,17 @@ def main(args):
                 with torch.cuda.amp.autocast():
                     with torch.no_grad():
                         mask = torch.zeros((test_bs, MAX_QUERIES)).to(device)
-                        for q in range(args.max_queries_test):
-                            hooks = []
-                            hooks = add_hooks(classifier_embed, mask, hooks)
-                            
+                        for q in range(args.max_queries_test):                            
                             # query and update history
-                            test_embed = classifier_embed(test_images)
+                            test_embed = classifier(test_images, mask, embed=True)
                             test_query = querier(test_embed, random_mask)
                             mask = mask + test_query
-                            hooks = add_hooks(classifier_embed, mask, hooks)
                             
                             # predict with updated history
-                            test_logits = classifier_fc(classifier_embed(test_images))
+                            test_logits = classifier(test_images)
                             batch_logits_test_lst.append(test_logits)
-                            
-                            # clear hooks
-                            remove_hooks(hooks)
 
-                        batch_logits_test_all = classifier_fc(classifier_embed(test_images))
+                        batch_logits_test_all = classifier(test_images)
                 batch_logits_test_lst = torch.stack(batch_logits_test_lst).permute(1, 0, 2)
                 
                 batch_y_pred_all = batch_logits_test_all.argmax(dim=1)
