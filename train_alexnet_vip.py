@@ -239,6 +239,7 @@ def main(args):
                 with torch.cuda.amp.autocast():
                     with torch.no_grad():
                         mask = torch.zeros((test_bs, MAX_QUERIES)).to(device)
+                        mask[:, :896] = 1.
                         for q in range(args.max_queries_test):                            
                             # query and update history
                             test_embed = classifier(test_images, mask, embed=True)
