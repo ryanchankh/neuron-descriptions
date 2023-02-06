@@ -264,7 +264,7 @@ def main(args):
                             mask = mask + test_query
                             
                             # predict with updated history
-                            test_logits = classifier(test_images)
+                            test_logits = classifier(test_images, mask)
                             batch_logits_test_lst.append(test_logits)
 
                         batch_logits_test_all = classifier(test_images)
