@@ -85,6 +85,11 @@ def freeze_conv(model):
     for name, param in list(model.named_parameters())[:10]:
         param.requires_grad = False
 
+def zero_grad(model):
+    for name, param in list(model.named_parameters()):
+        if param.grad is not None:
+            param.grad.detach_()
+            param.grad.zero_()
 
 def main(args):
     
@@ -195,6 +200,7 @@ def main(args):
                                 
                 # query and update history
                 train_embed = classifier(train_images, random_mask, embed=True)
+                zero_grad(classifier)
                 train_query = querier(train_embed, random_mask)
                 updated_mask = random_mask + train_query
                 
