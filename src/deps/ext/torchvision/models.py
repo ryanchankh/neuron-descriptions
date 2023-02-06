@@ -63,7 +63,8 @@ def alexnet_seq(**kwargs: Any) -> nn.Module:
                 'conv4': torch.arange(640, 896),
                 'conv5': torch.arange(876, 1132)
             }
-            layer_mask = torch.index_select(mask, 1, layer_mask_idx[layer])
+            device = mask.device
+            layer_mask = torch.index_select(mask, 1, layer_mask_idx[layer].to(device))
             layer_mask = layer_mask[:, :, None, None]
             return layer_mask
 
