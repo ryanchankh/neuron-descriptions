@@ -165,11 +165,11 @@ def main(args):
     ## Architectures
     classifier, _, _ = load('alexnet/imagenet', pretrained=True)    
     classifier = classifier.to(device)
-    classifier = DistributedDataParallel(classifier, device_ids=[gpu])
+    classifier = DistributedDataParallel(classifier, device_ids=[gpu], find_unused_parameters=True)
     
     querier = FullyConnectedQuerier(input_dim=9216, n_queries=MAX_QUERIES)
     querier = querier.to(device)
-    querier = DistributedDataParallel(querier, device_ids=[gpu])
+    querier = DistributedDataParallel(querier, device_ids=[gpu], find_unused_parameters=True)
 
     ## Optimization
     criterion = nn.CrossEntropyLoss()
@@ -200,7 +200,6 @@ def main(args):
                                 
                 # query and update history
                 train_embed = classifier(train_images, random_mask, embed=True)
-                zero_grad(classifier)
                 train_query = querier(train_embed, random_mask)
                 updated_mask = random_mask + train_query
                 
