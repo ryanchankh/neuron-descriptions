@@ -31,7 +31,7 @@ def parseargs():
     parser.add_argument('--epochs', type=int, default=200)
     parser.add_argument('--data', type=str, default='imagenet')
     parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--max_queries', type=int, default=1132)
+    parser.add_argument('--max_queries', type=int, default=1152)
     parser.add_argument('--max_queries_test', type=int, default=100)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--tau_start', type=float, default=1.0)
@@ -52,31 +52,6 @@ def parseargs():
     parser.add_argument('--ckpt_path', type=str, default=None, help='checkpoint directory')
     args = parser.parse_args()
     return args
-
-def multiply_mask(layer, mask):
-    """Hooks for modifying layer output during forward pass."""
-    layer_mask_idx = {
-        'conv1': torch.arange(0, 64),
-        'conv2': torch.arange(64, 256),
-        'conv3': torch.arange(256, 640),
-        'conv4': torch.arange(640, 896),
-        'conv5': torch.arange(876, 1132)
-    }
-    layer_mask = torch.index_select(mask, 1, layer_mask_idx[layer].to(mask.device))
-    layer_mask = layer_mask[:, :, None, None]
-    def hook(model, input, output):
-        return output * layer_mask
-    return hook
-
-def add_hooks(model, mask, layer_hooks):
-    for layer_idx, layer_name in zip([0, 3, 6, 8, 10], ['conv1', 'conv2', 'conv3', 'conv4', 'conv5']):
-        layer_hook = model.module[layer_idx].register_forward_hook(multiply_mask(layer_name, mask))
-        layer_hooks.append(layer_hook)
-    return layer_hooks
-
-def remove_hooks(layer_hooks):
-    for layer_hook in layer_hooks:
-        layer_hook.remove()
         
 def update_history(history, query):
     return history + query
@@ -197,6 +172,7 @@ def main(args):
             with torch.cuda.amp.autocast():
                 # random sampling history
                 random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).to(device)
+                random_mask[:, :896] = 1.
                                 
                 # query and update history
                 train_embed = classifier(train_images, random_mask, embed=True)
@@ -265,7 +241,7 @@ def main(args):
                         for q in range(args.max_queries_test):                            
                             # query and update history
                             test_embed = classifier(test_images, mask, embed=True)
-                            test_query = querier(test_embed, random_mask)
+                            test_query = querier(test_embed, mask)
                             mask = mask + test_query
                             
                             # predict with updated history
