@@ -156,9 +156,9 @@ def main(args):
     classifier, _, _ = load('alexnet/imagenet', pretrained=True)
     classifier_embed = classifier[:16]
     classifier_fc = classifier[16:]
+    
     classifier_fc = classifier_fc.to(device)
     classifier_fc = DistributedDataParallel(classifier_fc, device_ids=[gpu])
-    
     classifier_embed = classifier_embed.to(device)
     classifier_embed = DistributedDataParallel(classifier_embed, device_ids=[gpu])
     
@@ -168,7 +168,7 @@ def main(args):
 
     ## Optimization
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(list(querier.parameters()) + list(classifier_fc.parameters()), amsgrad=True, lr=args.lr)
+    optimizer = optim.Adam(list(querier.parameters()) + list(classifier[15:].parameters()), amsgrad=True, lr=args.lr)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     ## Training
@@ -187,23 +187,19 @@ def main(args):
             train_labels = train_labels.to(device)
             train_bs = train_images.shape[0]
             optimizer.zero_grad()
-            hooks = []
-            
+
             # inference
             with torch.cuda.amp.autocast():
                 # random sampling history
                 random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).to(device)
-                hooks = add_hooks(classifier_embed, random_mask, hooks)
-                
+                                
                 # query and update history
-                train_embed = classifier_embed(train_images)
+                train_embed = classifier(train_images, random_mask)
                 train_query = querier(train_embed, random_mask)
                 updated_mask = random_mask + train_query
-                hooks = add_hooks(classifier_embed, updated_mask, hooks)
                 
                 # predict with updated history
-                train_logits = classifier_fc(classifier_embed(train_images))
-                
+                train_logits = classifier(train_images, updated_mask)
 
             # backprop
             loss = criterion(train_logits, train_labels)

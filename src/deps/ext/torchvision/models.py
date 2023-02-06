@@ -54,7 +54,7 @@ def alexnet_seq(**kwargs: Any) -> nn.Module:
         def __getitem__(self, idx):
             return self.net[idx]
             
-        def multiply_mask(self, layer, mask):
+        def index_mask(self, layer, mask):
             """Hooks for modifying layer output during forward pass."""
             layer_mask_idx = {
                 'conv1': torch.arange(0, 64),
@@ -65,22 +65,27 @@ def alexnet_seq(**kwargs: Any) -> nn.Module:
             }
             layer_mask = torch.index_select(mask, 1, layer_mask_idx[layer])
             layer_mask = layer_mask[:, :, None, None]
-            def hook(model, input, output):
-                return output * layer_mask
-            return hook
-        
-        def register_hooks_for_masking(self, mask):
-            self.hooks = []
-            for layer_idx, layer_name in zip([0, 3, 6, 8, 10], ['conv1', 'conv2', 'conv3', 'conv4', 'conv5']):
-                layer_hook = self.net[layer_idx].register_forward_hook(self.multiply_mask(layer_name, mask))
-                self.hooks.append(layer_hook)
-        
-        def remove_hooks(self):
-            for hook in self.hooks:
-                hook.remove()
+            return layer_mask
 
-        def forward(self, x):
-            return self.net(x)
+        def forward(self, x, mask=None, out=None):
+            if mask is None:
+                return self.net(x)
+    
+            x = self.net[:1](x)
+            x = x * self.index_mask('conv1', mask)
+            x = self.net[1:4](x)
+            x = x * self.index_mask('conv2', mask)
+            x = self.net[4:7](x)
+            x = x * self.index_mask('conv3', mask)
+            x = self.net[7:9](x)
+            x = x * self.index_mask('conv4', mask)
+            x = self.net[9:11](x)
+            x = x * self.index_mask('conv5', mask)
+            x = self.net[11:15](x)
+            if out == 'embed':
+                return x
+            x = self.net[15:](x)
+            return x
 
     return AlexNetSeq()
 
