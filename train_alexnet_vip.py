@@ -81,6 +81,11 @@ def remove_hooks(layer_hooks):
 def update_history(history, query):
     return history + query
 
+def freeze_conv(model):
+    for name, param in list(model.named_parameters())[:10]:
+        param.requires_grad = False
+
+
 def main(args):
     
     ## CUDA
@@ -163,7 +168,7 @@ def main(args):
 
     ## Optimization
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(list(querier.parameters()) + list(classifier[15:].parameters()), amsgrad=True, lr=args.lr)
+    optimizer = optim.Adam(list(querier.parameters()) + list(classifier.parameters()), amsgrad=True, lr=args.lr)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     ## Training
@@ -172,6 +177,7 @@ def main(args):
     for epoch in range(args.epochs):
         classifier.train()
         querier.train()
+        freeze_conv(classifier)
         tau = scheduler_tau[epoch]
         querier.module.update_tau(tau)
         trainloader.sampler.set_epoch(epoch)
