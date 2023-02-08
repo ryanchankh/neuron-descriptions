@@ -149,7 +149,7 @@ def main(args):
         pin_memory=True,
         num_workers=4
     )
-    MAX_QUERIES = 1152
+    N_UNITS = 1152
     
     ## Architectures
     prober, prober_layers, _ = load('alexnet/imagenet', pretrained=True)
@@ -159,7 +159,7 @@ def main(args):
     act_quant = utils.load_json(os.path.join('./activations/alexnet_imagenet/quantiles0.99.json'))
     act_quant = {_key: torch.tensor(_values, device=device) for _key, _values in act_quant.items()}
     
-    net = FullyConnectedShared(input_dim=MAX_QUERIES, n_queries=MAX_QUERIES, n_clases=1000)
+    net = FullyConnectedShared(input_dim=N_UNITS, n_queries=N_UNITS, n_clases=1000)
     net = net.to(device)
     net = DistributedDataParallel(net, device_ids=[gpu], find_unused_parameters=True)
     classifier = lambda x: net('classifier', x)
@@ -178,7 +178,7 @@ def main(args):
     ## Optimization
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(net.parameters(), amsgrad=True, lr=args.lr)
-    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.wd)
+    # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.wd)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     ## Training
@@ -204,7 +204,7 @@ def main(args):
                 print(query_answers.shape)
                 
                 # random sampling history
-                random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).to(device)
+                random_mask = ip.sample_random_history(train_bs, N_UNITS, args.max_queries).to(device)
                                 
                 # query and update history
                 train_embed = classifier(train_images, random_mask)
@@ -267,7 +267,7 @@ def main(args):
                         # obtain query answers from prober
                         query_answers = compute_answers(prober, test_images, prober_acts, prober_layers)
                         
-                        mask = torch.zeros((test_bs, MAX_QUERIES)).to(device)
+                        mask = torch.zeros((test_bs, N_UNITS)).to(device)
                         for q in range(args.max_queries_test):                            
                             # query and update history
                             test_query = querier(test_images, mask)
