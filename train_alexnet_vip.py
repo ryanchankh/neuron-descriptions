@@ -200,15 +200,14 @@ def main(args):
             with torch.cuda.amp.autocast():
                 
                 # obtain query answers from prober
-                query_answers = compute_answers(prober, train_images, prober_acts, prober_layers)
+                query_answers = compute_answers(prober, train_images, prober_acts, prober_layers, act_quant)
                 print(query_answers.shape)
                 
                 # random sampling history
                 random_mask = ip.sample_random_history(train_bs, N_UNITS, args.max_queries).to(device)
                                 
                 # query and update history
-                train_embed = classifier(train_images, random_mask)
-                train_query = querier(train_embed, random_mask)
+                train_query = querier(train_embed)
                 updated_mask = random_mask + train_query * query_answers
                 
                 # predict with updated history
@@ -230,6 +229,7 @@ def main(args):
                  'train_loss': loss.item()}
                 )
             torch.cuda.synchronize()
+            break
         scheduler.step()
         
 
@@ -265,7 +265,7 @@ def main(args):
                 with torch.cuda.amp.autocast():
                     with torch.no_grad():
                         # obtain query answers from prober
-                        query_answers = compute_answers(prober, test_images, prober_acts, prober_layers)
+                        query_answers = compute_answers(prober, test_images, prober_acts, prober_layers, act_quant)
                         
                         mask = torch.zeros((test_bs, N_UNITS)).to(device)
                         for q in range(args.max_queries_test):                            
