@@ -200,7 +200,7 @@ def main(args):
             with torch.cuda.amp.autocast():
                 
                 # obtain query answers from prober
-                query_answers = compute_answers(prober, train_images, prober_acts, prober_layers)
+                query_answers = compute_answers(prober, train_images, prober_acts, prober_layers, act_quant)
                 print(query_answers.shape)
                 
                 # random sampling history
@@ -265,7 +265,7 @@ def main(args):
                 with torch.cuda.amp.autocast():
                     with torch.no_grad():
                         # obtain query answers from prober
-                        query_answers = compute_answers(prober, test_images, prober_acts, prober_layers)
+                        query_answers = compute_answers(prober, test_images, prober_acts, prober_layers, act_quant)
                         
                         mask = torch.zeros((test_bs, N_UNITS)).to(device)
                         for q in range(args.max_queries_test):                            
