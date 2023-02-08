@@ -163,7 +163,7 @@ def main(args):
     net = net.to(device)
     net = DistributedDataParallel(net, device_ids=[gpu], find_unused_parameters=True)
     classifier = lambda x: net('classifier', x)
-    querier = lambda x: net('querier', x)
+    querier = lambda x, mask: net('querier', x, mask)
     
     ## Hook intermediate outputs
     prober_acts = {}
@@ -204,14 +204,15 @@ def main(args):
                 print(query_answers.shape)
                 
                 # random sampling history
-                random_mask = ip.sample_random_history(train_bs, N_UNITS, args.max_queries).to(device)
+                mask = ip.sample_random_history(train_bs, N_UNITS, args.max_queries).to(device)
                                 
                 # query and update history
-                train_query = querier(train_embed)
-                updated_mask = random_mask + train_query * query_answers
+                history = query_answers * mask
+                train_query = querier(history, mask)
+                history = history + train_query * query_answers
                 
                 # predict with updated history
-                train_logits = classifier(train_images, updated_mask)
+                train_logits = classifier(history)
 
             # backprop
             loss = criterion(train_logits, train_labels)
@@ -268,16 +269,20 @@ def main(args):
                         query_answers = compute_answers(prober, test_images, prober_acts, prober_layers, act_quant)
                         
                         mask = torch.zeros((test_bs, N_UNITS)).to(device)
-                        for q in range(args.max_queries_test):                            
+                        for q in range(args.max_queries_test):     
+
+                            history = query_answers * mask
+
                             # query and update history
-                            test_query = querier(test_images, mask)
-                            mask = mask + test_query * query_answers
+                            test_query = querier(history, mask)
+                            mask = mask + test_query
+                            history = history + query_answers * mask
                             
                             # predict with updated history
-                            test_logits = classifier(test_images)
+                            test_logits = classifier(history)
                             batch_logits_test_lst.append(test_logits)
 
-                        batch_logits_test_all = classifier(test_images)
+                        batch_logits_test_all = classifier(query_answers)
                 batch_logits_test_lst = torch.stack(batch_logits_test_lst).permute(1, 0, 2)
                 
                 batch_y_pred_all = batch_logits_test_all.argmax(dim=1)
