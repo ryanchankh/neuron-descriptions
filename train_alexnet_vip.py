@@ -73,7 +73,7 @@ def compute_answers(model, images, outputs, names, thresholds):
         _ = model(images)
         for _layer_name in names:
             qry_ans_layer = torch.where(
-                                outputs[_layer_name] >= thresholds[_layer_name],
+                                outputs[_layer_name] > thresholds[_layer_name],
                                 1.,
                                 -1.
                             )
@@ -156,7 +156,7 @@ def main(args):
     prober = prober.to(device)
     prober = DistributedDataParallel(prober, device_ids=[gpu])
     prober.eval()
-    act_quant = utils.load_json(os.path.join('./activations/alexnet_imagenet/quantiles0.99.json'))
+    act_quant = utils.load_json(os.path.join('./activations/alexnet_imagenet/quantiles99.json'))
     act_quant = {_key: torch.tensor(_values, device=device) for _key, _values in act_quant.items()}
     
     net = FullyConnectedShared(input_dim=N_UNITS, n_queries=N_UNITS, n_clases=1000)
