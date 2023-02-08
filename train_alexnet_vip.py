@@ -235,8 +235,7 @@ def main(args):
         
 
         if epoch % 10 == 0 or epoch == args.epochs - 1:
-            classifier.eval()
-            querier.eval()
+            net.eval()
             torch.distributed.barrier()
             if utils.is_main_process():
                 utils.save_ckpt(model_dir, 
@@ -249,8 +248,7 @@ def main(args):
                 )
         
         if epoch % 10 == 0 or epoch == args.epochs - 1:
-            classifier.eval()
-            querier.eval()
+            net.eval()
             torch.distributed.barrier()
 
             y_test_pred_all, y_test_pred_ip, y_test, se_lst = [], [], [], []
