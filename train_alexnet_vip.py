@@ -187,7 +187,7 @@ def main(args):
     for epoch in range(args.epochs):
         net.train()
         tau = scheduler_tau[epoch]
-        querier.module.update_tau(tau)
+        net.module.update_tau(tau)
         trainloader.sampler.set_epoch(epoch)
         torch.cuda.synchronize()
         for train_batch_i, (train_images, train_labels) in tqdm(enumerate(trainloader)):
