@@ -16,7 +16,7 @@ def __getattr__(name: str) -> Any:
     return getattr(models, name)
 
 
-def alexnet_seq(**kwargs: Any) -> nn.Module:
+def alexnet_seq_old(**kwargs: Any) -> nn.Module:
     """Return sequentialized AlexNet model from torchvision."""
     class AlexNetSeq(nn.Module):
         def __init__(self, **kwargs):
@@ -91,7 +91,7 @@ def alexnet_seq(**kwargs: Any) -> nn.Module:
     return AlexNetSeq()
 
 
-def alexnet_seq_old(**kwargs: Any) -> nn.Sequential:
+def alexnet_seq(**kwargs: Any) -> nn.Sequential:
     """Return sequentialized AlexNet model from torchvision."""
     model = models.alexnet(**kwargs)
     layers = list(
