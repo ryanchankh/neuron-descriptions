@@ -159,7 +159,7 @@ def main(args):
     act_quant = utils.load_json(os.path.join('./activations/alexnet_imagenet/quantiles99.json'))
     act_quant = {_key: torch.tensor(_values, device=device) for _key, _values in act_quant.items()}
     
-    net = FullyConnectedShared(input_dim=N_UNITS, n_queries=N_UNITS, n_clases=1000)
+    net = FullyConnectedShared(input_dim=N_UNITS, n_queries=N_UNITS, n_classes=1000)
     net = net.to(device)
     net = DistributedDataParallel(net, device_ids=[gpu], find_unused_parameters=True)
     classifier = lambda x: net('classifier', x)
