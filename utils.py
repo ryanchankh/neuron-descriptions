@@ -55,10 +55,10 @@ def on_master(func, *args, **kwargs):
         return func(*args, **kwargs)
 
 
-def save_dict(model_dir, _dict, name):
+def save_json(model_dir, _dict, name):
     """Save params to a .json file. Params is a dictionary of parameters."""
-    path = os.path.join(model_dir, 'dict', f'{name}.json')
-    os.makedirs(os.path.join(model_dir, 'dict'), exist_ok=True)
+    path = os.path.join(model_dir, f'{name}.json')
+    os.makedirs(os.path.join(model_dir), exist_ok=True)
     with open(path, 'w') as f:
         json.dump(_dict, f, indent=2, sort_keys=True)
 

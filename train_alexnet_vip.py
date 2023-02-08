@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from torch.nn.parallel import DistributedDataParallel
 
 from src.exemplars.models import load
-from arch.fc1 import FullyConnectedQuerier
+from arch.fc1 import FullyConnectedShared
 
 import ops.ip as ip
 import ops.evaluate as evaluate
@@ -65,6 +65,20 @@ def zero_grad(model):
         if param.grad is not None:
             param.grad.detach_()
             param.grad.zero_()
+            
+def compute_answers(model, images, outputs, names, thresholds):
+    query_answers = []
+    device = images.device
+    with torch.no_grad():
+        _ = model(images)
+        for _layer_name in names:
+            qry_ans_layer = torch.where(
+                                outputs[_layer_name] >= thresholds[_layer_name],
+                                1.,
+                                -1.
+                            )
+            query_answers.append(qry_ans_layer.float().to(device))
+    return torch.cat(query_answers, dim=1)
 
 def main(args):
     
@@ -138,27 +152,40 @@ def main(args):
     MAX_QUERIES = 1152
     
     ## Architectures
-    classifier, _, _ = load('alexnet/imagenet', pretrained=True)    
-    classifier = classifier.to(device)
-    classifier = DistributedDataParallel(classifier, device_ids=[gpu], find_unused_parameters=True)
+    prober, prober_layers, _ = load('alexnet/imagenet', pretrained=True)
+    prober = prober.to(device)
+    prober = DistributedDataParallel(prober, device_ids=[gpu])
+    prober.eval()
+    act_quant = utils.load_json(os.path.join('./activations/alexnet_imagenet/quantiles0.99.json'))
+    act_quant = {_key: torch.tensor(_values, device=device) for _key, _values in act_quant.items()}
     
-    querier = FullyConnectedQuerier(input_dim=9216, n_queries=MAX_QUERIES)
-    querier = querier.to(device)
-    querier = DistributedDataParallel(querier, device_ids=[gpu], find_unused_parameters=True)
+    net = FullyConnectedShared(input_dim=MAX_QUERIES, n_queries=MAX_QUERIES, n_clases=1000)
+    net = net.to(device)
+    net = DistributedDataParallel(net, device_ids=[gpu], find_unused_parameters=True)
+    classifier = lambda x: net('classifier', x)
+    querier = lambda x: net('querier', x)
+    
+    ## Hook intermediate outputs
+    prober_acts = {}
+    def get_output(layer):
+        def hook(model, input, output):
+            prober_acts[layer] = output.flatten(2, 3).max(-1).values
+        return hook
+
+    for layer_idx, layer_name in zip([1, 4, 7, 9, 11], prober_layers):
+        prober.module[layer_idx].register_forward_hook(get_output(layer_name))
 
     ## Optimization
     criterion = nn.CrossEntropyLoss()
-    # optimizer = optim.Adam(list(querier.parameters()) + list(classifier.parameters()), amsgrad=True, lr=args.lr)
-    optimizer = optim.SGD(list(querier.parameters()) + list(classifier.parameters()), lr=args.lr, momentum=0.9, weight_decay=args.wd)
+    optimizer = optim.Adam(net.parameters(), amsgrad=True, lr=args.lr)
+    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.wd)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     ## Training
     scheduler_tau = torch.linspace(args.tau_start, args.tau_end, args.epochs)
     scaler = torch.cuda.amp.GradScaler()
     for epoch in range(args.epochs):
-        classifier.train()
-        querier.train()
-        freeze_conv(classifier)
+        net.train()
         tau = scheduler_tau[epoch]
         querier.module.update_tau(tau)
         trainloader.sampler.set_epoch(epoch)
@@ -171,14 +198,18 @@ def main(args):
 
             # inference
             with torch.cuda.amp.autocast():
+                
+                # obtain query answers from prober
+                query_answers = compute_answers(prober, train_images, prober_acts, prober_layers)
+                print(query_answers.shape)
+                
                 # random sampling history
-                random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries, start_index=896).to(device)
-                random_mask[:, :896] = 1.
+                random_mask = ip.sample_random_history(train_bs, MAX_QUERIES, args.max_queries).to(device)
                                 
                 # query and update history
-                train_embed = classifier(train_images, random_mask, embed=True)
+                train_embed = classifier(train_images, random_mask)
                 train_query = querier(train_embed, random_mask)
-                updated_mask = random_mask + train_query
+                updated_mask = random_mask + train_query * query_answers
                 
                 # predict with updated history
                 train_logits = classifier(train_images, updated_mask)
@@ -194,15 +225,11 @@ def main(args):
                 wandb.log,
                 {'train_epoch': epoch, 
                  'train_lr': utils.get_lr(optimizer),
-                 'train_querier_grad_norm': utils.get_grad_norm(querier),
-                 'train_classifier_grad_norm': utils.get_grad_norm(classifier),
+                 'train_net_grad_norm': utils.get_grad_norm(net),
                  'train_tau': tau,
                  'train_loss': loss.item()}
                 )
             torch.cuda.synchronize()
-            
-            # if train_batch_i > 2:
-                # break
         scheduler.step()
         
 
@@ -213,8 +240,7 @@ def main(args):
             if utils.is_main_process():
                 utils.save_ckpt(model_dir, 
                     {'epoch': epoch,
-                     'classifier': classifier.state_dict(),
-                     'querier': querier.state_dict(),
+                     'net': net.state_dict(),
                      'optimizer': optimizer.state_dict(),
                      'scheduler': scheduler.state_dict()
                     }, 
@@ -238,16 +264,17 @@ def main(args):
                 batch_logits_test_lst = []
                 with torch.cuda.amp.autocast():
                     with torch.no_grad():
+                        # obtain query answers from prober
+                        query_answers = compute_answers(prober, test_images, prober_acts, prober_layers)
+                        
                         mask = torch.zeros((test_bs, MAX_QUERIES)).to(device)
-                        mask[:, :896] = 1.
                         for q in range(args.max_queries_test):                            
                             # query and update history
-                            test_embed = classifier(test_images, mask, embed=True)
-                            test_query = querier(test_embed, mask)
-                            mask = mask + test_query
+                            test_query = querier(test_images, mask)
+                            mask = mask + test_query * query_answers
                             
                             # predict with updated history
-                            test_logits = classifier(test_images, mask)
+                            test_logits = classifier(test_images)
                             batch_logits_test_lst.append(test_logits)
 
                         batch_logits_test_all = classifier(test_images)
@@ -280,8 +307,7 @@ def main(args):
             del test_labels
             del batch_logits_test_lst
             del se_lst
-            
-            
+        
 
             # logging
             if utils.is_main_process():
